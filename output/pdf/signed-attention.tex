@@ -1,0 +1,228 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[letterpaper,left=1.04in,right=1.04in,top=0.92in,bottom=0.93in,headheight=14pt,headsep=18pt]{geometry}
+\usepackage{amsmath,booktabs,xcolor,fancyhdr,hyperref}
+\DeclareMathSizes{10.95}{10.95}{8}{7}
+\DeclareMathSizes{10}{10}{7}{7}
+\DeclareMathSizes{9}{9}{7}{7}
+\definecolor{ink}{HTML}{173F50}
+\hypersetup{colorlinks=true,linkcolor=ink,citecolor=ink,urlcolor=ink,
+ pdftitle={Cancellation in bounded-entry attention and Gaussian kernel products},
+ pdfauthor={OpenAI Codex},pdfsubject={Fine-grained complexity of output-relative approximation}}
+\pagestyle{fancy}\fancyhf{}\lhead{\small\textit{Signed attention and Gaussian kernel products}}\rhead{\small OpenAI Codex}
+\cfoot{\small\thepage}\renewcommand{\headrulewidth}{0.3pt}
+\fancypagestyle{first}{\fancyhf{}\cfoot{\small\thepage}\renewcommand{\headrulewidth}{0pt}}
+\setlength{\parindent}{0pt}\setlength{\parskip}{5pt plus 0.5pt minus 0.5pt}
+\setlength{\abovedisplayskip}{7pt plus 1pt minus 1pt}
+\setlength{\belowdisplayskip}{7pt plus 1pt minus 1pt}
+\raggedbottom
+
+\newcommand{\one}{\mathbf 1}\newcommand{\abs}[1]{\lvert#1\rvert}
+\newcommand{\norm}[1]{\lVert#1\rVert}
+\newcommand{\qedmark}{\unskip\nobreak\hfill\rule{0.5em}{0.5em}}
+\newcommand{\result}[1]{\smallskip\textbf{#1}\enspace}
+\newcommand{\paper}[2]{\href{#1}{\textit{#2}}}
+\begin{document}
+\thispagestyle{first}
+\begin{center}
+{\LARGE\bfseries\color{ink} Cancellation in bounded-entry attention\\[4pt] and Gaussian kernel products\par}
+\vspace{9pt}
+{\large OpenAI Codex}\par
+{\small Research manuscript \enspace$\cdot$\enspace 27 November 2026}
+\end{center}
+\begin{abstract}\noindent
+How small must the entries of a softmax attention instance be for fast relative approximation of its output? With signed values, every fixed positive entry bound already admits a reduction from logarithmic-dimensional Orthogonal Vectors. The reduction uses dyadic inputs of logarithmic bit length and works for every fixed relative error below one, even with two possible value entries. It also works for inverse-polynomial entry bounds and for a global Euclidean relative guarantee with every true output strictly positive. The construction groups the coefficients of a bivariate polynomial into keys. Nonorthogonal pairs then cancel exactly inside the attention numerator. At unit entry bound, a Taylor algorithm takes almost-linear time when the logarithm of the cancellation ratio is little-oh of $\log N\log\log N$. Hard instances under the Orthogonal Vectors hypothesis occur at that order. A symmetric embedding of the same polynomial yields a conditional lower bound for signed products with an ordinary Gaussian Gram matrix, addressing Question 5.2 of Shah, Silwal and Xu.
+\end{abstract}
+\section{The problem and the literature}
+Lacker's bounded-entry attention problem \cite{lacker} asks for the constant in the transition for inverse-polynomial additive accuracy and asks whether relative accuracy has the same transition. We study the second question. Relative error in this paper is measured against the final output. In particular, a promise on the individual softmax weights and a promise on their signed weighted sum are different mathematical guarantees.
+
+Alman and Song \cite[Theorems 1.3 and 1.4]{as} use logits $\langle q_i,k_j\rangle/D$. At dimension $D=O(\log N)$, their deterministic algorithm takes $N^{1+o(1)}$ time for additive error $N^{-\beta}$, for every fixed $\beta>0$, when the entry bound is $B=o(\sqrt{\log N})$. Their lower bound at $B=C\sqrt{\log N}$ is for suitable dimension, precision and entry constants depending on the desired exponent saving. The division by $D$ matters when comparing entry bounds. Throughout we use their normalization.
+
+The first conditional result below applies even at $B=1$. At that bound, the known additive algorithm can return an accurate approximation to the attention average while losing its sign. The question is whether another algorithm can recover that sign just as quickly.
+\newpage
+
+\subsection*{Subsequent bounds and the hypothesis}
+Duman Keles, Wijewardena and Hegde \cite{keles} studied multiplicative attention approximation in larger parameter regimes. Haverbeck et al.\ \cite[Theorem 3.7 and Table 1]{hav} obtain hardness at $D=C_d\log N$, $B=C_B\sqrt{\log N}$ for fixed relative error $\eta<1$ and for additive error below $1/2$ on values in $[0,1]$. Their relative bounds include Schatten norms, and their hard instances use nonnegative values. Gupta et al.\ \cite{gupta} give subquadratic algorithms at constant head dimension and arbitrary temperature. These results have different dimension or entry hypotheses from the construction below.
+
+Li's November preprint \cite[Corollaries 3.7, 4.2 and 4.5]{li} uses the maximum within-row logit spread $W$. At constant nontrivial additive accuracy it obtains time exponent $1+\min\{\kappa,1\}$ for $W=\kappa\ln N$ in the regime $D=\omega(\log N)$ and $D=N^{o(1)}$, conditional on low-dimensional Orthogonal Vectors for the lower bound. At logarithmic dimension and accuracy $N^{-\beta}$, the hard spread constant depends on $\beta$. Even bounded entries can be hard for additive accuracy $N^{-O(\log\log N)}$ \cite[Remark 4.3]{li}. The exact entry constant at a prescribed additive exponent and almost-linear runtime remains a separate question. For other bounded-input hypotheses, WildCat also gives a superpolynomially decaying additive error in near-linear time \cite{wildcat}.
+
+The original attention papers formulated lower bounds using the Strong Exponential Time Hypothesis (SETH). An October 2026 report gives a refutation of the Exponential Time Hypothesis for fixed-width SAT \cite{eth}. Li \cite[Section 2.2]{li} traces the surviving attention reductions to the following hypothesis about Orthogonal Vectors (OV). Our reductions start directly from OV.
+
+\result{Hypothesis (LDOV).} For every $\gamma\in(0,1)$ there is a constant $c$ such that deciding whether two lists of $n$ Boolean vectors of dimension $\lceil c\log_2 n\rceil$ contain a cross-pair of dot product zero has no randomized $O(n^{2-\gamma})$ algorithm of success probability at least $2/3$ on every input. All reductions below are deterministic. Using the deterministic hypothesis gives the corresponding deterministic conclusions.
+
+\result{Input and output.} There are $N$ queries, $N$ keys and initially one value per key. Set
+\[
+ A_{ij}=\exp(\langle q_i,k_j\rangle/D),\quad S_i=\sum_j A_{ij},\qquad
+ Y_i=\frac{\sum_j A_{ij}v_j}{S_i}.
+\]
+The entry bound applies to $Q,K,v$ in absolute value. An entrywise relative approximation satisfies $|\widehat Y_i-Y_i|\le\eta |Y_i|$ for every $i$ simultaneously. A global relative approximation satisfies $\norm{\widehat Y-Y}_2\le\eta\norm Y_2$. We count bit operations up to polylogarithmic factors, with explicit binary inputs and outputs. Input dyadics use binary integers for numerator and denominator, so logarithmic input precision gives a common grid of spacing $2^{-O(\log N)}$. Outputs may also use binary floating point with an exponent field. Decoding costs are measured in the actual returned bit length. A runtime bound includes reading the instance and writing the result. Logs denoted by $\ln$ are natural.
+\newpage
+
+\section{An exact reduction for signed attention}
+\result{Theorem 1.} Fix $0<\eta<1$, $\delta\in(0,1)$ and $a\ge0$. Under LDOV there is a constant $C$ such that no $O(N^{2-\delta})$ algorithm gives entrywise relative error $\eta$ on every instance with $D\le C\log N$ and entries at most $N^{-a}$ in magnitude. All inputs in the reduction are $O(\log N)$-bit dyadics. It suffices to ask for the signs of the scalar outputs, each of which is nonzero. The result holds at every fixed positive entry bound as well.
+
+\textit{Proof.} Pad the Boolean vectors with zeros to the next power-of-two dimension $d$, and put $D=2d$. Let $s=\langle x,y\rangle$. The polynomial
+\begin{equation}
+ P(z,u)=\prod_{j=1}^d (u^j-z)=\sum_{(t,r)\in I} c_{tr} z^t u^r
+ \label{poly}
+\end{equation}
+has $H=|I|=O(d^3)$ nonzero integer coefficients, since $0\le t\le d$ and $0\le r\le d(d+1)/2$. Every contribution at fixed $t$ has sign $(-1)^t$, so $\sum_I |c_{tr}|=2^d$. Successive multiplication by the $d$ binomials computes all coefficients in $\operatorname{poly}(d)$ bit operations. For every $u>1$,
+\begin{equation}
+ P(u^s,u)=0\quad(1\le s\le d),\qquad P(1,u)=\prod_{j=1}^d(u^j-1)>0 .
+ \label{roots}
+\end{equation}
+For example, $d=2$ gives $u^3-zu-zu^2+z^2$. At $z=u$ or $u^2$ its four terms cancel. At $z=1$ their sum is $(u-1)(u^2-1)$.
+
+Use one block of $H$ keys per input vector $y$ and one extra block for $y=0$. Set $N=(n+1)H$. Choose a positive power of two $b\le1$ meeting the entry cap, for example $b=2^{-\lceil a\rceil\lceil\log_2 N\rceil}$ for a cap $N^{-a}$. Use
+\begin{align}
+ q(x)&=b(x,\one_d),&
+ k(y,t,r)&=b\big((t/d)y,(r/d^2)\one_d\big),&
+ v(y,t,r)&=b\,2^{-d}c_{tr}. \label{keys}
+\end{align}
+Multiply every value in the extra block by $\lambda$. Repeat the first query to bring the query count to $N$. Every input entry has magnitude at most $b$ when $|\lambda|\le1$. With $h=b^2/(2d^2)$ and $u=e^h$, the normalized dot product is $h(ts+r)$. Thus, if $m_x$ counts the orthogonal partners of $x$ with multiplicity, its exact output is
+\begin{equation}
+ Y_x=\frac{L(m_x+\lambda)}{S_x},\qquad
+ L=b\,2^{-d}P(1,e^h)>0. \label{count}
+\end{equation}
+Take $\lambda=-1/2$. Exactly the queries with a partner have positive output. Every relative error below one preserves this sign. The data require $O(d+\log N)$ bits per entry, including the signed multiplicities. Construction takes $n\operatorname{polylog}n$ time. Reading the output signs costs at most a scan of the returned bits. An $O(N^{2-\delta})$ algorithm would take $O(n^{2-\delta/2})$ on these instances, contradicting LDOV with $\gamma=\delta/2$. A fixed cap admits a fixed dyadic $b$. \qedmark
+
+\result{A consequence without LDOV.} Let the decision predicate ask whether some output is positive, with the entries encoded on a common fixed-point grid. At $b=1$ every bit of \eqref{keys} is a constant or a copy of an input bit. A Boolean formula or branching program for the predicate therefore restricts to one for bichromatic OV by direct substitution. Taking the source dimension $\lceil3\log_2 n\rceil$, the bounds of Choudhury et al.\ \cite[Theorem 6]{cls} are $\Omega(n^2\log n)$ for binary Boolean formulas and $\Omega(n^2)$ for branching programs. Since $N=O(n\log^3 n)$, the resulting attention bounds are $\Omega(N^2/\log^5 N)$ and $\Omega(N^2/\log^6 N)$, respectively, on the constructed lengths.
+\newpage
+
+\subsection*{Two possible value entries suffice}
+\result{Corollary 1.1.} The sign lower bound of Theorem 1 holds with every value in $\{-b,b\}$ for a common positive dyadic $b\le N^{-a}$. At $a=0$ one may take $b=1$. The keys and their multiplicities encode the polynomial coefficients.
+
+\textit{Proof.} Fix $\delta$, choose the LDOV dimension constant for $\gamma=\delta/2$, and retain the $N_0=(n+1)H$ base keys of \eqref{keys} with the negative half offset. Use one extra coordinate, so $D=2d+1$ and $h=b^2/(Dd)$. Write each base value as $b\sigma w$, $\sigma\in\{-1,1\}$, $0<w\le1$. For a given query put $U=\sum A_{ij}\sigma_j w_j$, using the base logits $h(ts+r)$. From \eqref{roots},
+\[
+ |U|\ge 2^{-d-1}h^d d! .
+\]
+Set $m=\lceil(\delta/100)\log_2 n\rceil$, $L_m=\mathrm{lcm}(1,\ldots,m)$, and define integers $a_j$ by
+\[
+ \sum_{j=0}^m a_j Z^j=L_m\sum_{\ell=1}^m
+       \frac{(-1)^{\ell+1}}{\ell}(Z-1)^\ell .
+\]
+Their absolute sum $J_m$ is at most $2^{m+1} L_m\le2^{5m+1}$. For the last inequality, $L_{2s}/L_s$ divides $\binom{2s}{s}$, since any new prime power in $(s,2s]$ contributes one new prime factor, and that factor divides the central binomial coefficient by the factorial valuation formula. Iterating over powers of two up to the first one at least $m$ gives $L_m\le 2^{4m}$.
+
+Replace each base key by $|a_j|$ copies for each $j$. Each copy has new coordinate $b j E w$ and value $b\sigma\operatorname{sgn}(a_j)$, where $E$ is a small positive dyadic. Give the query new coordinate $b$, so the extra logit is $j\theta w$ with $\theta=b^2 E/D$. The number of keys is now $N=N_0 J_m\le n^{1+\delta/16}$ for all sufficiently large $n$. Repeat queries as before and take $b=2^{-\lceil2a\rceil\lceil\log_2 n\rceil}$. Then $b\le N^{-a}$ and all base logits lie in $[0,1]$.
+
+At $Z=e^{\theta w}$, the displayed polynomial divided by $L_m$ approximates $\log Z=\theta w$ to absolute error at most $(2\theta)^{m+1}$ for $\theta\le1/4$, by the alternating series and $e^{\theta w}-1\le 2\theta$. The new numerator divided by $bL_m\theta$ consequently differs from $U$ by at most $2eN_0(2\theta)^m$. Choose $E=2^{-T\lceil\log_2 n\rceil}$ with a sufficiently large fixed integer $T$. This error is smaller than $2^{-d-1}h^d d!$ because the logarithm of the inverse of the latter bound is $O_{a,\delta,c}((\ln n)^2)$, whereas $m\ln(1/(2\theta))$ has a coefficient of $(\ln n)^2$ growing at least linearly in $T$. Equivalently, one can increase $T$ until the rational test $6N_0(2\theta)^m<2^{-d-1}h^d d!$ holds. The sign is preserved, $mE\le1$, and each entry still uses $O(\log N)$ bits. Constructing all copies and applying the alleged algorithm takes $O(n^{2-\delta/2})$ time, as $(1+\delta/16)(2-\delta)<2-\delta/2$. \qedmark
+\newpage
+
+\section{Positive outputs and global relative error}
+Strict cancellation to zero sometimes makes a multiplicative specification look artificially exact. In Theorem 1 the offset avoids zero in every row. We next make every scalar output positive and allow the algorithm to spend its entire error budget on a single row.
+
+\result{Theorem 2.} With the parameters of Theorem 1, the conditional lower bound holds for the global Euclidean relative guarantee, with every true scalar output strictly positive. For $D$ value columns it holds for relative error in any fixed Schatten norm $S_p$, $1\le p\le\infty$.
+
+\textit{Proof.} In \eqref{count} take $\lambda=2^{-2\lceil\log_2 N\rceil}>0$. The exact numerator scale can be bracketed by a rational number. Set
+\[
+ G=b\,2^{-d} h^d d!.
+\]
+Since $x\le e^x-1\le xe^x$ for $x\ge0$, and $h\sum_{j=1}^d j\le1$ for $b\le1$, one has $G\le L\le eG$. All logits belong to $[0,b^2]$, giving $N\le S_x\le eN$. If the input has no orthogonal pair, each of the $N$ outputs is at most $e G\lambda/N$. If it has a pair, at least one output is at least $G/(eN)$. Consequently
+\begin{equation}
+ \norm{Y}_{2,\mathrm{no}}\le eG N^{-5/2},\qquad
+ \norm{Y}_{2,\mathrm{yes}}\ge G/(eN). \label{gap}
+\end{equation}
+The triangle inequality confines the approximate norm to
+$[(1-\eta)\norm Y_2,(1+\eta)\norm Y_2]$. For sufficiently large $N$, the rational threshold $G/N^2$ separates the two intervals with a growing margin. Its numerator and denominator have $O(\log^2 N)$ bits for fixed $a$. A constant-factor norm estimate suffices. Computing a scaled sum of squares with leading binary mantissas takes time quasilinear in the returned bit length. Finite exceptions may be decided directly.
+
+For the matrix formulation, repeat the value column $D$ times. All outputs remain positive, $Y=y\one_D^\top$, and $\norm Y_{S_p}=\sqrt D\norm y_2$. Averaging the estimated columns gives
+\[
+ \norm{(T-Y)\one_D/D}_2\le\norm{T-Y}_{\rm op}/\sqrt D\le\norm{T-Y}_{S_p}/\sqrt D
+ \le\eta\norm y_2 .
+\]
+The column average therefore solves the vector problem. Entrywise relative error also implies the Euclidean relative guarantee for a vector. \qedmark
+
+\result{Size of the signal.} At $b=1$ we have $h=1/(2d^2)$ and $\ln(1/G)=d\ln d+O(d)$. A sign in Theorem 1 can survive only in digits far below a typical inverse-polynomial additive tolerance on the hardest rows. Even at $b=N^{-O(1)}$ the sign gap used here is representable with $O(\log^2 N)$ fractional bits. The reduction does not require an exact-real input oracle or an exact comparison with zero in Theorem 2.
+\newpage
+
+\section{How much cancellation changes the running time}
+Let $U_i=\sum_j A_{ij}v_j$, $M_i=\sum_j A_{ij}|v_j|$ and $\chi=\max_i M_i/|U_i|$. Give a zero-over-zero ratio the value one and a nonzero-over-zero ratio the value infinity. This is the componentwise condition number of a signed sum under independent multiplicative perturbations of its terms. It also gives a quantitative comparison between Theorem 1 and polynomial approximation.
+
+\result{Theorem 3.} Suppose $D=O(\log N)$, the inputs are $O(\log N)$-bit dyadics, and $R=B^2=o(\ln N)$ with $B\ge N^{-O(1)}$. Put
+\[
+ F_N=(\ln N)\ln\big((\ln N)/R\big).
+\]
+Given a bound $K\ge\chi$, entrywise relative error $\eta\in(0,1)$ is achievable deterministically in $N^{1+o(1)}$ bit operations if $\ln(K/\eta)=o(F_N)$, for explicitly supplied parameters of polylogarithmic bit length. At $B=1$ this covers $\ln(K/\eta)=o(\log N\log\log N)$. For each fixed saving $\delta$ and each such cap $B$ admitting an efficiently computable dyadic $b\in[B/2,B]$ of logarithmic bit length, the hard sign instances have $\ln\chi=\Theta_\delta(F_N)$.
+
+\textit{Proof of the algorithm.} On $[-R,R]$, the degree-$(k-1)$ Taylor polynomial for $e^s$ has relative error at most $\rho=e^{2R}(eR/k)^k$, by the remainder formula and $k!\ge(k/e)^k$. Choose $k$ to give $\rho\le\eta/[4(K+1)]$. For any fixed $\varepsilon>0$, the choice $k=\lceil\varepsilon\ln N\rceil$ gives
+\[
+ \ln(1/\rho)=k\ln(k/(eR))-2R=(\varepsilon+o(1))F_N .
+\]
+Hence a sufficient $k=o(\log N)$ exists. The bound can be tested conservatively using integer upper estimates for $e^{2R}$ and $e$ (such as $2^{\lceil3R\rceil}$ and $3$). The same asymptotic conclusion holds.
+
+If $\widetilde U_i,\widetilde S_i$ use the polynomial weights, their errors are at most $\rho M_i$ and $\rho S_i$. Division gives relative output error at most $\rho(K+1)/(1-\rho)\le\eta$. When $M_i=0$ every value is zero and the numerator is exactly zero. Expanding $(q\cdot k')^j$ by the multinomial theorem uses at most $\binom{D+k}{k}=N^{o(1)}$ monomials over all $j<k$, since $k=o(\ln N)$ and $D=O(\ln N)$. Sum each key monomial once with values and once without, then evaluate the two resulting polynomials per query. This costs $N^{1+o(1)}$ operations. A common dyadic grid for the inputs and the common denominator $D^k k!$ for the polynomial coefficients keep all exact rational intermediates to $\operatorname{polylog}N$ bits. The final ratio can be returned as a rational.
+
+\textit{Hard instances.} Use \eqref{keys} with $b\in[B/2,B]$ and $\lambda=-1/2$. The proof of the sign identity works for every $b>0$. Let $J=2^{-d}P(1,e^h)$. The absolute term mass in every row lies in $[b(n+1/2),\,b(n+1/2)e^{b^2}]$. Equation \eqref{count} therefore gives $1/J\le\chi_i\le (2n+1)e^{b^2}/J$. Bounding each $e^{hj}-1$ between $hj$ and $hj e^{hj}$ and using Stirling gives $\ln(1/J)=d\ln(d/b^2)+O(d+b^2)$. As $d=\Theta_\delta(\ln N)$, $b^2=o(\ln N)$ and $\ln((\ln N)/R)\to\infty$, this proves the claimed scale. Values of one sign have $\chi=1$, giving almost-linear output-relative approximation at every fixed inverse-polynomial precision when $B=o(\sqrt{\ln N})$. \qedmark
+\newpage
+
+\section{A symmetric Gaussian Gram matrix}
+For a list of points $p_1,\ldots,p_M$, write $K_{ij}=e^{-\norm{p_i-p_j}_2^2}$. Shah, Silwal and Xu \cite[Theorem 2.1]{ssx} obtain a subquadratic output-relative algorithm for $Kw$ when $w$ is nonnegative. Their Theorem 2.6 gives a conditional lower bound at relative error $M^{-0.002}$ for a modified rectangular kernel. Question 5.2 asks for hardness with signed $w$ for the genuine Gram matrix. The following consequence uses one point list for both indices and has the ordinary diagonal $K_{ii}=1$.
+
+\result{Theorem 4.} For any fixed $0<\eta,\delta<1$, under LDOV there is no $O(M^{2-\delta})$ algorithm for all logarithmic-dimensional Gaussian Gram instances that returns $T$ with $\norm{T-Kw}_2\le\eta\norm{Kw}_2$. The hard instances have dyadic coordinates and signed dyadic weights with $O(\log M)$ bits. The time bound includes processing the input point list.
+
+\textit{Constructing the point set.} Use the polynomial \eqref{poly} and the same padded $d$. For each query vector $x$ use $q=(x,\one_d,0^4)$. For each $y,t,r$ start with
+\[
+ z_0=\big((t/d)y,(r/d^2)\one_d\big).
+\]
+Append four dyadic coordinates to get $z$ with $\norm z_2^2=2d$. Indeed, $d^4(2d-\norm{z_0}_2^2)$ is a nonnegative integer at most $2d^5$. By Lagrange's four-square theorem it is a sum of four integer squares. Exhaustive search over three summands and an integer square-root test take $\operatorname{poly}(d)$ time. Divide the four integers by $d^2$. Padding $q$ by zeros leaves $\langle q,z\rangle=(ts+r)/d$. Equal norms give the exact identity
+\begin{equation}
+ \sum_{y,(t,r)\in I} e^{-\norm{q-z}_2^2}\,2^{-d}c_{tr}
+ =e^{-\norm q_2^2-2d}\,2^{-d}P(1,e^{2/d})\,m_x .\label{gauss}
+\end{equation}
+Here and below a sum over $y$ counts its list multiplicities. A witness makes \eqref{gauss} at least $e^{-5d}$, because $\norm q_2^2\le2d$ and
+\[
+ 2^{-d}P(1,e^{2/d})\ \ge\ 2^{-d}(2/d)^d d!\ \ge\ e^{-d}.
+\]
+This bound concerns only the query rows. A Gram algorithm returns the additional rows indexed by the points that carry weights. With global relative error these rows could dominate the permitted error. To control them, set $M=n+2nH$, $g=2^{-8d}$ and $\tau=g\,2^{-3\lceil\log_2 M\rceil}$. The last coordinate and the weights are given in the table.
+\[
+ \begin{array}{c|c}
+ \text{point}&\text{weight}\\ \hline
+ (q,1)&0\\
+ (z,+\tau)&+2^{-d}c_{tr}\\
+ (z,-\tau)&-2^{-d}c_{tr}
+ \end{array}
+\]
+Each pair of copies contributes through the factor
+$f(v)=e^{-(v-\tau)^2}-e^{-(v+\tau)^2}$ at a row whose final coordinate is $v$.
+\newpage
+
+\subsection*{Separating the norms}
+At a query row, $f(1)=2e^{-1-\tau^2}\sinh(2\tau)\ge\tau/2$ since $\tau\le1$. At a weighted row, $|f(\pm\tau)|=1-e^{-4\tau^2}\le4\tau^2$. The absolute sum of the unpaired weights $2^{-d}c_{tr}$ over all $n$ blocks is $n$, and every base Gaussian kernel entry is at most one. Thus the absolute output on \emph{every} weighted row is at most $4n\tau^2$, regardless of the answer to OV. This accounts for the diagonal entries as well.
+
+In a NO instance all query rows vanish by \eqref{gauss}. In a YES instance at least one query has output at least $\tau e^{-5d}/2\ge\tau g/2$. The full Gram output therefore satisfies
+\[
+ \norm{Kw}_{2,\mathrm{no}}\le4n\sqrt M\,\tau^2
+ \le4\tau g M^{-3/2},\qquad
+ \norm{Kw}_{2,\mathrm{yes}}\ge\tau g/2 .
+\]
+For sufficiently large $M$, the rational threshold $\tau g/M$ separates the approximate norms for any fixed $\eta<1$. All coordinates, weights and the threshold have $O(d+\log M)$ bits. The construction takes $n\operatorname{polylog}n$ time. If distinct points are required, combine identical points and add their weights, retaining the original $M$ in the gap estimates. A surviving query still witnesses every YES case, and the NO norm can only decrease when repeated rows are removed. Restore the count $M$ with distinct zero-weight points of last coordinate zero (vary the first coordinate on a dyadic grid). These rows vanish since $f(0)=0$. This preserves the logarithmic dimension and bit promises even when many points coincide. This proves Theorem 4. \qedmark
+
+\section{Checks and scope}
+The accompanying standard-library Python verifier multiplies \eqref{poly} by its defining factors and compares the coefficients to independent subset enumeration. It checks all $19$ substitutions $s=0,\ldots,d$ across $d=1,2,4,8$. It also builds $26$ square attention instances, checks $35{,}232$ logits directly from the input coordinates, and evaluates $188$ distinct query rows using rational substitutions for the formal variable $u$. These checks include both signs of the dummy weight and repeated input vectors. For Corollary 1.1, two additional finite examples use logarithm polynomials of degrees 9 and 16. The verifier checks 34,620 grouped logits exactly and the remainder and output signs for eight rows at 170 decimal digits.
+
+For Theorem 4 the verifier builds the Gaussian matrices directly from squared distances and evaluates their full products at 100 decimal digits. It checks all pairs of two-element multisets from $\{0,1\}^2$, comprising $19$ NO and $81$ YES cases. Each matrix has size $18\times18$. The exact polynomial identities and inequalities in the proofs provide the asymptotic guarantees.
+
+The attention result answers the relative-error branch for unrestricted signed values. Its hard cases have nearly cancelling contributions and the guarantee has no additive floor. At a specified inverse-polynomial additive tolerance the precise entry constant remains open. For intermediate cancellation ratios, Theorem 3 identifies the order of the logarithmic scale at unit bound. Determining the leading constant in $\ln\chi$ for a given ratio $D/\ln N$, and the optimal time exponent at that constant, remains open.
+\newpage
+
+\subsection*{Relation to earlier kernel reductions}
+Alman and Guan \cite{ag} recover counts from evaluations at multiple kernel scales using a counting matrix. Li \cite[Theorem 4.1]{li} recovers information about the number of orthogonal partners by modular arithmetic at high additive precision. Equation \eqref{poly} instead inserts the identifying polynomial into a single attention numerator before approximation. Shah, Silwal and Xu \cite{ssx} already use signed cancellation for their modified matrix. The paired final coordinate in Theorem 4 controls the extra rows of a symmetric Gram product, the obstacle that separates their question from a rectangular kernel calculation.
+
+\smallskip
+\textit{Reproducibility.} The file \texttt{verify\_signed\_attention.py} runs with Python 3.9 or later and has no external dependencies. This manuscript is an AI-authored research draft.
+
+\begin{thebibliography}{10}
+\setlength{\itemsep}{5pt}
+\bibitem{lacker} K. Lacker. \paper{https://lacker.io/complexity/problems/attention-bounded-entry-threshold.html}{Pin down the exact entry-size threshold for fast attention}. Open problems in complexity theory. Problem entry consulted 27 November 2026.
+\bibitem{as} J. Alman and Z. Song. \paper{https://arxiv.org/abs/2302.13214}{Fast Attention Requires Bounded Entries}. NeurIPS 36, 2023, pp. 63117--63135.
+\bibitem{keles} F. Duman Keles, P. M. Wijewardena and C. Hegde. \paper{https://proceedings.mlr.press/v201/duman-keles23a.html}{On the Computational Complexity of Self-Attention}. ALT, PMLR 201, 2023, pp. 597--619.
+\bibitem{hav} L. Haverbeck, C. Amo Alonso, A. F. Posada-Moreno, S. Trimpe and M. Pavone. \paper{https://arxiv.org/abs/2609.37261}{Efficiently Approximating Attention Is Hard}. arXiv:2609.37261, September 2026.
+\bibitem{gupta} S. Gupta, B. Huang, B. Saha, Y. Xu and C. Ye. \paper{https://arxiv.org/abs/2505.14840}{Subquadratic Algorithms and Hardness for Attention with Any Temperature}. ICLR 2026.
+\bibitem{li} X. Li. \paper{https://hexagonmath.org/pdf/2611.00132v1}{Fast Attention after SETH: The Exact Exponent and the Hypotheses Behind It}. Hexagon preprint 2611.00132v1, November 2026.
+\bibitem{wildcat} T. Schr\"oder and L. Mackey. \paper{https://proceedings.mlr.press/v306/schroder26a.html}{WildCat: Near-Linear Attention in Theory and Practice}. ICML, PMLR 306, 2026, pp. 108454--108484.
+\bibitem{ssx} R. Shah, S. Silwal and H. Xu. \paper{https://proceedings.mlr.press/v306/shah26c.html}{Even Faster Kernel Matrix Linear Algebra via Density Estimation}. ICML, PMLR 306, 2026, pp. 109601--109638. See also \href{https://arxiv.org/html/2510.02540v2\#S5}{Question 5.2 in the full text}.
+\bibitem{ag} J. Alman and Y. Guan. \paper{https://doi.org/10.4230/LIPIcs.CCC.2024.35}{Finer-Grained Hardness of Kernel Density Estimation}. CCC, LIPIcs 300, 2024, Article 35.
+\bibitem{cls} T. Choudhury, N. Limaye, K. Sreenivasaiah and S. Srinivasan. \paper{https://arxiv.org/abs/2607.23799}{New and Improved Concrete Lower Bounds for Orthogonal Vectors}. arXiv:2607.23799, July 2026.
+\bibitem{eth} OpenAI. \paper{https://openai.com/index/building-scientific-understanding-with-academic-communities/}{Working with academic communities to build scientific understanding}. Section on the Exponential Time Hypothesis, 26 October 2026. Links to the manuscript and formalization.
+\end{thebibliography}
+
+\end{document}
